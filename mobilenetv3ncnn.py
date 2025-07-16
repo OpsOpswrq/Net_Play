@@ -62,7 +62,6 @@ def detect(net, img, prob_threshold=0.6):
 
     ex = net.create_extractor()
     ex.set_light_mode(False)
-    ex.set_num_threads(4)
     ex.input("in0", in_mat)
 
     cls_pred_out = ncnn.Mat()
@@ -79,13 +78,10 @@ def detect(net, img, prob_threshold=0.6):
             'prob': score
         }
         objects.append(obj)
-        print(f"Detected object: label={class_names[label]}, prob={score:.2f}")
-
     return objects
 
 def draw(img, objects):
     if not objects:
-        print("No objects to draw!")
         return img
 
     obj = objects[0]  # 取第一个检测到的物体
@@ -114,17 +110,16 @@ def load_ncnn_model(param_path, bin_path, use_gpu=False):
         net = ncnn.Net()
         has_gpu = ncnn.get_gpu_count() > 0
         if use_gpu and not has_gpu:
-            print("Warning: GPU computation requested but no Vulkan-compatible GPU detected. Falling back to CPU.")
+            pass
         net.opt.use_vulkan_compute = has_gpu and use_gpu
+        net.opt.num_threads = 4
         net.opt.use_fp16_arithmetic = True
         net.opt.use_fp16_packed = True
         net.opt.use_fp16_storage = True
         net.load_param(param_path)
         net.load_model(bin_path)
-        print(f"Using {'GPU' if net.opt.use_vulkan_compute else 'CPU'} for computation")
         return net
     except Exception as e:
-        print(f"Error loading NCNN model: {e}")
         raise
 
 def load_image(image_path):
@@ -146,6 +141,5 @@ if __name__ == "__main__":
         objects = detect(net, img, prob_threshold=0.6)
         img_with_text = draw(img, objects)
         cv.imwrite("output.jpg", img_with_text)
-        print("Inference completed. Output saved as 'output.jpg'.")
     except Exception as e:
-        print(f"Error during inference: {e}")
+        raise

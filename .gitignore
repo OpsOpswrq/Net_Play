@@ -1,2 +1,8 @@
 # datasets文件
 datasets
+
+# pycache文件
+__pycache__
+
+# gradio生成的文件
+.gradio

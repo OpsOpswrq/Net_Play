@@ -10,3 +10,10 @@ Because torch in python is so strong, ncnn is strong in the edge_device.
 [mobilenetv3](https://github.com/Fafa-DL/Awesome-Backbones)
 
 [ncnn](https://github.com/Tencent/ncnn)
+
+[Gradio](https://gradio.org.cn/docs)
+
+[fastrtc](https://fastrtc.org/)
+
+## Addition
+I add a gradio component. Gradio which is a simple component to design a interface is easy to learn.
