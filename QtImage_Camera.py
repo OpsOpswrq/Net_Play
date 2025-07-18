@@ -14,11 +14,7 @@ from arcane_processor import process_image as process_arcane
 from shinkai_processor import process_image as process_shinkai
 from paprika_processor import process_image as process_paprika
 
-camera_index = 0
-style_dict = {
-    "柏皮卡": "./weights/Shinkai.pt",
-    "双城之战": "./weights/ArcaneGANv0.4.jit"
-}
+camera_index = 1
 
 class ImageViewer(QMainWindow):
     def __init__(self):
@@ -35,22 +31,24 @@ class ImageViewer(QMainWindow):
         if self.cuda_available:
             self.device_options.append("CUDA")
         
+        # 根据CUDA可用性动态设置style_dict
+        self.style_dict = {
+            "柏皮卡": "./weights/Shinkai.pt"
+        }
+        if self.cuda_available:
+            self.style_dict["双城之战"] = "./weights/ArcaneGANv0.4.jit"
+        
         # 加载模型并移动到默认设备
         self.models = {}
         try:
-            for key, path in style_dict.items():
+            for key, path in self.style_dict.items():
                 if key == "双城之战":
                     model = torch.jit.load(path).to(self.device)
                     model = model.eval().half()  # 使用 FP16
-                    # 确保所有参数和缓冲区在正确设备上
                     for param in model.parameters():
                         param.data = param.data.to(self.device)
                     for buffer in model.buffers():
                         buffer.data = buffer.data.to(self.device)
-                # elif key == "柏皮卡":
-                #     net = AnimeGANV2()
-                #     net.load_state_dict(torch.load(path, map_location="cpu"))
-                #     model = net.to(self.device).eval()
                 else:
                     model = torch.jit.load(path).to(self.device)
                     model = model.eval()
@@ -89,7 +87,7 @@ class ImageViewer(QMainWindow):
         right_layout.setSpacing(15)
         
         self.combo_box_style = QComboBox()
-        self.combo_box_style.addItems(style_dict.keys())
+        self.combo_box_style.addItems(self.style_dict.keys())  # 动态添加样式选项
         self.combo_box_style.setFixedWidth(150)
         self.combo_box_style.setStyleSheet("""
             QComboBox {
@@ -224,19 +222,30 @@ class ImageViewer(QMainWindow):
             new_device = torch.device("cuda" if device_name == "CUDA" else "cpu")
             if new_device != self.device:
                 self.device = new_device
-                for key, path in style_dict.items():
+                # 更新style_dict以确保与当前设备一致
+                self.style_dict = {
+                    "柏皮卡": "./weights/Shinkai.pt"
+                }
+                if self.device.type == "cuda":
+                    self.style_dict["双城之战"] = "./weights/ArcaneGANv0.4.jit"
+                
+                # 更新combo_box_style
+                self.combo_box_style.clear()
+                self.combo_box_style.addItems(self.style_dict.keys())
+                
+                # 重新加载模型
+                self.models.clear()
+                for key, path in self.style_dict.items():
                     if key == "双城之战":
-                        # 重新加载 JIT 模型以避免设备缓存问题
                         self.models[key] = torch.jit.load(path).to(self.device)
-                        self.models[key] = self.models[key].eval().half()  # 使用 FP16
-                        # 确保所有参数和缓冲区在正确设备上
+                        self.models[key] = self.models[key].eval().half()
                         for param in self.models[key].parameters():
                             param.data = param.data.to(self.device)
                         for buffer in self.models[key].buffers():
                             buffer.data = buffer.data.to(self.device)
                     else:
-                        self.models[key] = self.models[key].to(self.device)
-                        # 确保所有参数和缓冲区在正确设备上
+                        self.models[key] = torch.jit.load(path).to(self.device)
+                        self.models[key] = self.models[key].eval()
                         for param in self.models[key].parameters():
                             param.data = param.data.to(self.device)
                         for buffer in self.models[key].buffers():
@@ -246,20 +255,21 @@ class ImageViewer(QMainWindow):
             self.statusBar().showMessage(f'设备切换失败: {str(e)}')
             self.combo_box_device.setCurrentText("CPU")
             self.device = torch.device("cpu")
-            for key, path in style_dict.items():
-                if key == "双城之战":
-                    self.models[key] = torch.jit.load(path).to(self.device)
-                    self.models[key] = self.models[key].eval().half()  # 确保 CPU 上也为 FP16
-                    for param in self.models[key].parameters():
-                        param.data = param.data.to(self.device)
-                    for buffer in self.models[key].buffers():
-                        buffer.data = buffer.data.to(self.device)
-                else:
-                    self.models[key] = self.models[key].to(self.device)
-                    for param in self.models[key].parameters():
-                        param.data = param.data.to(self.device)
-                    for buffer in self.models[key].buffers():
-                        buffer.data = buffer.data.to(self.device)
+            # 更新style_dict和combo_box_style
+            self.style_dict = {
+                "柏皮卡": "./weights/Shinkai.pt"
+            }
+            self.combo_box_style.clear()
+            self.combo_box_style.addItems(self.style_dict.keys())
+            # 重新加载模型
+            self.models.clear()
+            for key, path in self.style_dict.items():
+                self.models[key] = torch.jit.load(path).to(self.device)
+                self.models[key] = self.models[key].eval()
+                for param in self.models[key].parameters():
+                    param.data = param.data.to(self.device)
+                for buffer in self.models[key].buffers():
+                    buffer.data = buffer.data.to(self.device)
     
     def select_image(self):
         self.stop_camera()
@@ -409,14 +419,9 @@ class ImageViewer(QMainWindow):
             
             if style == "双城之战":
                 pil_img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-                processed_img = process_arcane(pil_img, model, self.device)  # 传递 device 参数
+                processed_img = process_arcane(pil_img, model, self.device)
                 if processed_img is not None:
                     return cv2.cvtColor(np.array(processed_img), cv2.COLOR_RGB2BGR)
-            # elif style == "柏皮卡":
-            #     pil_img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
-            #     processed_img = process_paprika(pil_img, model, self.device)
-            #     if processed_img is not None:
-            #         return cv2.cvtColor(np.array(processed_img), cv2.COLOR_RGB2BGR)
             else:
                 processed_img = process_shinkai(img, model, self.device)
                 if processed_img is not None:
